@@ -4,6 +4,7 @@
 // 16.10.10 vector add
 // 16.10.13 mqtt subscribe
 // 16.10.31 camera test
+// 16.11.05 IPgetter
 
 #include <functional>
 #include <pthread.h>
@@ -16,6 +17,10 @@
 #include <chrono>
 #include <vector>
 #include <uuid/uuid.h>
+#include <ifaddrs.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <cassert>
 
 #include "OCPlatform.h"
 #include "OCApi.h"
@@ -43,7 +48,7 @@ std::vector<Resource *> v;
 
 /* controller */
 std::string controllerID;
-std::string controllerIP = "192.168.0.38";
+std::string controllerIP;
 std::string controllerNAME = "controllerPI";
 std::string adminNAME;
 std::string adminTEL;
@@ -53,14 +58,15 @@ std::string delete_sensor2;
 int isDelete = 0;
 int isFire = 0;
 int pNumber = 0;
+int codeFlag = 0;
 //char **p;
 std::vector<std::string> vs;
 int *q;
 
 /* mqtt test */
 const std::string MQTT_ADDRESS("tcp://203.252.146.154:1883");
-const std::string MQTT_CLIENTID("ControllerPi1");
-const std::string MQTT_CLIENTID2("ControllerPi2");
+const std::string MQTT_CLIENTID("ControllerPi3");
+const std::string MQTT_CLIENTID2("ControllerPi4");
 const std::string TOPIC("iotivity");
 const std::string TOPIC2("iotivityCtrl");
 const int QOS = 1;
@@ -193,19 +199,22 @@ class s_callback : public virtual mqtt::callback, public virtual mqtt::iaction_l
 		
 		int code = root["code"].asInt();
 		std::string tempString;
-		tempString = root["data"]["controller_id"].asString();
-		if(tempString == controllerID){
+		//tempString = root["data"]["controller_id"].asString();
+
 		if(code == 0) // information change
 		{
 			const Json::Value data = root["data"];
-			tempString = root["data"]["controller_name"].asString();
-			if(tempString.length()) controllerNAME = tempString;
-			tempString = root["data"]["admin_name"].asString();
-			if(tempString.length()) adminNAME = tempString;
-			tempString = root["data"]["admin_tel"].asString();
-			if(tempString.length()) adminTEL = tempString;
-			tempString = root["data"]["description"].asString();
-			if(tempString.length()) description = tempString;
+			tempString = root["data"]["controller_id"].asString();
+			if(tempString == controllerID){
+				tempString = root["data"]["controller_name"].asString();
+				if(tempString.length()) controllerNAME = tempString;
+				tempString = root["data"]["admin_name"].asString();
+				if(tempString.length()) adminNAME = tempString;
+				tempString = root["data"]["admin_tel"].asString();
+				if(tempString.length()) adminTEL = tempString;
+				tempString = root["data"]["description"].asString();
+				if(tempString.length()) description = tempString;
+			}
 		}
 		else if(code == 1) // controller alarm on
 		{
@@ -224,13 +233,15 @@ class s_callback : public virtual mqtt::callback, public virtual mqtt::iaction_l
 			vs.clear();
 			for(int index = 0; index < pNumber; ++index)
 			{
-				q[index] = data[index]["light_state"].asInt();
-				vs.push_back(data[index]["sensor_id"].asString());
+				if(data[index]["controller_id"] == controllerID){
+					q[index] = data[index]["light_state"].asInt();
+					vs.push_back(data[index]["sensor_id"].asString());
+				}
 			}
 			std::vector<std::string>::iterator vi;
 			for(vi=vs.begin(); vi!=vs.end(); vi++)
 			{
-				cout << "UUID : " <<*vi << endl;
+				cout << "UUID : " << *vi << endl;
 			}
 		}
 		else // delete sensor
@@ -239,7 +250,6 @@ class s_callback : public virtual mqtt::callback, public virtual mqtt::iaction_l
 			delete_sensor1 = root["data"]["sensor_id"].asString();
 			delete_sensor2 = root["data"]["sensor_uri"].asString();
 			isDelete = 1;
-		}
 		}
 	}
 
@@ -753,8 +763,8 @@ int main(int argc, char* argv[])
 	char *tmp = new char[37];
 	time_t time_now;
 
-	system("sudo rm -rf ControllerPi1-203.252.146.154-1883");
-	system("sudo rm -rf ControllerPi2-203.252.146.154-1883");
+	system("sudo rm -rf ControllerPi3-203.252.146.154-1883");
+	system("sudo rm -rf ControllerPi4-203.252.146.154-1883");
 	system("sudo ./startmotion");
 
 	// setting uuid
@@ -778,6 +788,55 @@ int main(int argc, char* argv[])
 	controllerID = tmp;
 	std::cout << "uuid : '" << controllerID << "'" << std::endl;
 
+	// getting IP
+	struct ifaddrs *ifAddrStruct = NULL;
+	struct ifaddrs *ifa = NULL;
+	void *tmpAddrPtr = NULL;
+	int tempCnt = 0;
+
+	getifaddrs(&ifAddrStruct);
+
+	for(ifa = ifAddrStruct; ifa != NULL; ifa = ifa->ifa_next) {
+		tempCnt++;
+		if(!ifa->ifa_addr) continue;
+		if(ifa->ifa_addr->sa_family == AF_INET) { //if IP4
+			tmpAddrPtr = &((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
+			char addressBuffer[INET_ADDRSTRLEN];
+			inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
+			if(tempCnt == 5)
+				controllerIP = addressBuffer;
+		}
+	}
+	if(ifAddrStruct != NULL) freeifaddrs(ifAddrStruct);
+
+	/*
+	int sock = socket(AF_INET, SOCK_DGRAM, 0);
+	assert(sock != -1);
+	const char* kGoogleDnsIP = "8.8.8.8";
+	int kDnsPort = 53;
+	struct sockaddr_in serv;
+	memset(&serv, 0, sizeof(serv));
+	serv.sin_family = AF_INET;
+	serv.sin_addr.s_addr = inet_addr(kGoogleDnsIP);
+	serv.sin_port = htons(kDnsPort);
+
+	int err = connect(sock, (const sockaddr*) &serv, sizeof(serv));
+	assert(err != -1);
+
+	sockaddr_in name;
+	socklen_t namelen = sizeof(name);
+	err = getsockname(sock, (sockaddr *) &name, &namelen);
+	assert(err != -1);
+
+	char addressBuffer[INET_ADDRSTRLEN];
+	const char* p = inet_ntop(AF_INET, &name.sin_addr, addressBuffer, INET_ADDRSTRLEN);
+	cout << addressBuffer << endl;
+	assert(p);
+
+	close(sock);
+	*/
+
+	// Non-Secure mode
 	std::cout << "Non-secure resource and notify all observers\n";
 	OCPersistentStorage ps {client_open, fread, fwrite, fclose, unlink};
 
@@ -840,7 +899,6 @@ int main(int argc, char* argv[])
 			sleep(1);
 
 			time(&time_now);
-
 			sensorPAYLOAD = "{\"controller_id\":\"" + controllerID + "\", \"controller_name\":\"" + controllerNAME + "\", \"update_timestamp\":" + std::to_string(time_now)  + ", \"admin_name\":\"" + adminNAME + "\", \"admin_tel\":\"" + adminTEL + "\", \"ip_address\":\"" + controllerIP + "\", \"description\":\"" + description + "\", \"sensor_data\":[";
 			int tempCnt = 1;
 			vector<Resource *>::iterator vi;
