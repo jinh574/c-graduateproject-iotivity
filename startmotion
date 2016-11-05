@@ -1,0 +1,2 @@
+#!/bin/sh
+nohup /home/pi/iotivity-1.1.1/resource/examples/camtest/motion -n -c /home/pi/iotivity-1.1.1/resource/examples/camtest/motion-mmalcam-both.conf 1>/dev/null 2>&1 </dev/null &
