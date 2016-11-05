@@ -205,7 +205,7 @@ class s_callback : public virtual mqtt::callback, public virtual mqtt::iaction_l
 		{
 			const Json::Value data = root["data"];
 			tempString = root["data"]["controller_id"].asString();
-			if(tempString == controllerID){
+			if(tempString == controllerID) {
 				tempString = root["data"]["controller_name"].asString();
 				if(tempString.length()) controllerNAME = tempString;
 				tempString = root["data"]["admin_name"].asString();
@@ -219,11 +219,15 @@ class s_callback : public virtual mqtt::callback, public virtual mqtt::iaction_l
 		else if(code == 1) // controller alarm on
 		{
 			const Json::Value data = root["data"];
-			isFire = root["data"]["type"].asInt();
+			tempString = root["data"]["controller_id"].asString();
+			if(tempString == controllerID) {
+				isFire = root["data"]["type"].asInt();
+			}
 		}
 		else if(code == 2) // controller alarm off
 		{
 			isFire = 0;
+			codeFlag = pNumber;
 		}
 		else if(code == 3) // count people
 		{
@@ -528,10 +532,14 @@ public:
 			{
 				if(vs[i] == m_name)
 				{
-					cout << "??" << vs[i] << " / " << m_name << " / " << q[i] << endl;
 					light_state = q[i];
 				}
 			}
+		}
+		if(codeFlag)
+		{
+			light_state = 0;
+			codeFlag--;
 		}
 		fire_alarm = isFire;
 		rep.setValue("m_name", m_name);
