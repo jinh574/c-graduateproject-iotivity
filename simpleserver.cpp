@@ -58,15 +58,14 @@ std::string delete_sensor2;
 int isDelete = 0;
 int isFire = 0;
 int pNumber = 0;
-int codeFlag = 0;
 //char **p;
 std::vector<std::string> vs;
 int *q;
 
 /* mqtt test */
 const std::string MQTT_ADDRESS("tcp://203.252.146.154:1883");
-const std::string MQTT_CLIENTID("ControllerPi3");
-const std::string MQTT_CLIENTID2("ControllerPi4");
+const std::string MQTT_CLIENTID("ControllerPi1");
+const std::string MQTT_CLIENTID2("ControllerPi2");
 const std::string TOPIC("iotivity");
 const std::string TOPIC2("iotivityCtrl");
 const int QOS = 1;
@@ -226,8 +225,8 @@ class s_callback : public virtual mqtt::callback, public virtual mqtt::iaction_l
 		}
 		else if(code == 2) // controller alarm off
 		{
+			pNumber = 0;
 			isFire = 0;
-			codeFlag = pNumber;
 		}
 		else if(code == 3) // count people
 		{
@@ -248,12 +247,20 @@ class s_callback : public virtual mqtt::callback, public virtual mqtt::iaction_l
 				cout << "UUID : " << *vi << endl;
 			}
 		}
-		else // delete sensor
+		else if(code == 4)// delete sensor
 		{
 			const Json::Value data = root["data"];
 			delete_sensor1 = root["data"]["sensor_id"].asString();
 			delete_sensor2 = root["data"]["sensor_uri"].asString();
 			isDelete = 1;
+		}
+		else if(code == 5)
+		{
+			isFire = 1;
+		}
+		else
+		{
+			isFire = 0;
 		}
 	}
 
@@ -522,7 +529,7 @@ public:
 		}
 		return get();
 	}
-
+	
 	OCRepresentation get()
 	{
 		if(pNumber)
@@ -536,11 +543,12 @@ public:
 				}
 			}
 		}
-		if(codeFlag)
+
+		if(!pNumber)
 		{
 			light_state = 0;
-			codeFlag--;
 		}
+
 		fire_alarm = isFire;
 		rep.setValue("m_name", m_name);
 		rep.setValue("light_state", light_state);
@@ -771,8 +779,8 @@ int main(int argc, char* argv[])
 	char *tmp = new char[37];
 	time_t time_now;
 
-	system("sudo rm -rf ControllerPi3-203.252.146.154-1883");
-	system("sudo rm -rf ControllerPi4-203.252.146.154-1883");
+	system("sudo rm -rf ControllerPi1-203.252.146.154-1883");
+	system("sudo rm -rf ControllerPi2-203.252.146.154-1883");
 	system("sudo ./startmotion");
 
 	// setting uuid
