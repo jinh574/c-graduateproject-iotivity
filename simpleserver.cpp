@@ -38,6 +38,7 @@ static const char* SVR_DB_FILE_NAME = "./oic_svr_db_server.dat";
 int gObservation = 0;
 bool isListOfObservers = false;
 void *ChangeValueRepresentation (void *param);
+int checkstate(string uri);
 
 /* sensor number */
 int number = 0;
@@ -58,6 +59,7 @@ std::string delete_sensor2;
 int isDelete = 0;
 int isFire = 0;
 int pNumber = 0;
+int networkFlag = 0;
 //char **p;
 std::vector<std::string> vs;
 int *q;
@@ -126,12 +128,14 @@ class s_action_listener : public virtual mqtt::iaction_listener
 
 	virtual void on_failure(const mqtt::itoken& tok) {
 		std::cout << name_ << " failure";
+		networkFlag = 1;
 		if (tok.get_message_id() != 0)
 			std::cout << " (token: " << tok.get_message_id() << ")" << std::endl;
 		std::cout << std::endl;
 	}
 
 	virtual void on_success(const mqtt::itoken& tok) {
+		networkFlag = 0;
 		if(tok.get_message_id() != 0) {}
 		if(!tok.get_topics().empty()) {}
 	}
@@ -423,7 +427,9 @@ public:
 	{
 		try {
 			rep.getValue("m_name", m_name);
+			rep.getValue("m_sensorUri", m_sensorUri);
 			std::cout << "\t\t\t\turi : " << m_sensorUri << std::endl;
+			std::cout << "\t\t\t\tnetwork flag : " << networkFlag << " // isFire : " << isFire << std::endl;
 			if (rep.getValue("light_state", light_state) && rep.getValue("light_power", light_power))
 			{
 				std::cout << "\t\t\t\t" << "light state : " << light_state << " // light power : " << light_power << std::endl;
@@ -547,6 +553,15 @@ public:
 		if(!pNumber)
 		{
 			light_state = 0;
+		}
+
+		if(networkFlag)
+		{
+			rep.getValue("m_sensorUri", m_sensorUri);
+			int tempstate = checkstate(m_sensorUri);
+			if(tempstate >= 6){
+				isFire = 1;
+			}
 		}
 
 		fire_alarm = isFire;
@@ -765,6 +780,25 @@ void *mqttSubscribe(void *)
 	{
 		std::cerr << "Error: " << exc.what() << std::endl;
 	}
+}
+
+int checkstate(string uri)
+{
+	int tempCount;
+	vector<Resource *>::iterator vi;
+	for(vi=v.begin(); vi!=v.end(); ++vi)
+	{
+		if((*vi)->m_sensorUri == uri)
+		{
+			if((*vi)->gas_state == 2) tempCount +=2;
+			if((*vi)->temp_state == 2) tempCount +=2;
+			if((*vi)->humi_state == 2) tempCount +=2;
+			if((*vi)->flame_state == 2) tempCount +=2;
+			tempCount = (*vi)->gas_state + (*vi)->temp_state + (*vi)->humi_state + (*vi)->flame_state;
+		}
+	}
+
+	return tempCount;
 }
 
 static FILE* client_open(const char* /*path*/, const char *mode)
