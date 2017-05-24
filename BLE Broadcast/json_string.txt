@@ -1,0 +1,1 @@
+{"count":2,"people":[{"address":"64:6c:2d:1a:c6:57","major":20,"minor":30,"distance":1.2086774899735395,"timestamp":1476190551},{"address":"4a:30:17:65:eb:f7","major":20,"minor":30,"distance":1,"timestamp":1476190551}]}

@@ -1,0 +1,116 @@
+extends layout
+
+block content
+	div(role='tabpanel', ng-controller='monit')
+		ul.nav.nav-tabs#myTab
+			li.active(role='presentation')
+				a(href='#dashboard')
+					span.glyphicon.glyphicon-th-large(aria-hidden='true')
+					span &nbsp;Dashboard&nbsp;&nbsp;
+					span.badge {{tableData.length}}
+		
+		.tab-content
+			.tab-pane.active#dashboard(role='tabpanel')
+				.jumbotron
+					.container
+						h1 Dashboard
+						p This is Dashboard
+				.panel(ng-repeat='sensor in tableData', ng-class='{ "panel panel-success" : selectPanel(current_timestamp, sensor.update_timestamp, sensor.fire_alarm), "panel panel-danger" : !selectPanel(current_timestamp, sensor.update_timestamp, sensor.fire_alarm) }')
+					.panel-heading {{sensor.controller_name}}&nbsp;&nbsp;
+						span.badge {{sensor.sensor_data.length}}
+						span(style='float: right')
+							span
+								a(href='#', data-toggle='modal', data-target='.changeInfo', ng-click='makeModal(sensor.controller_id)')
+									span.glyphicon.glyphicon-pencil(aria-hidden='true')
+							span &nbsp;&nbsp;
+							span
+								a(href='#', data-toggle='modal', data-target='.doAlert', ng-click='makeAlert(1, sensor.controller_id, sensor.controller_name)' ng-show='sensor.fire_alarm == 0')
+									span.glyphicon.glyphicon-fire(aria-hidden='true')
+							span
+								a(href='#', data-toggle='modal', data-target='.doAlert', ng-click='makeAlert(2, sensor.controller_id, sensor.controller_name)' ng-show='sensor.fire_alarm == 2')
+									span.glyphicon.glyphicon-share(aria-hidden='true')
+							
+					.panel-body(ng-show='sensor.admin_name || sensor.admin_tel || sensor.description')
+						p(ng-show='sensor.admin_name || sensor.admin_tel') 
+							span(ng-show='sensor.admin_name') <b>관리자</b>: {{sensor.admin_name}}
+							span(ng-show='sensor.admin_name' style='margin-left: 20px') &#09;&#09; 
+							span(ng-show='sensor.admin_tel') <b>연락처</b>: {{sensor.admin_tel}}
+						p(ng-show='sensor.description') {{sensor.description}}
+					table.table.table-hover.table-condensed
+						tr(data-ng-show='$first')
+							th #
+							th 이름
+							th 가스(ccd)
+							th 온도(C)
+							th 습도(%)
+							th 적외선(nm)
+							th 인원
+							th 상태
+							th 비고
+						tr(ng-repeat='row in sensor.sensor_data', ctrlID='{{row.controller_id}}')
+							td {{$index+1}}
+							td {{row.sensor_uri}}
+							td(ng-class='{ "warning": row.gas_state == 1, "danger": row.gas_state == 2 }') {{row.gas_efflux}}
+							td(ng-class='{ "warning": row.temp_state == 1, "danger": row.temp_state == 2 }') {{row.temp}}
+							td(ng-class='{ "warning": row.humi_state == 1, "danger": row.humi_state == 2 }') {{row.humi}}
+							td(ng-class='{ "warning": row.flame_state == 1, "danger": row.flame_state == 2 }') {{row.flame_power}}
+							td {{(sensor.fire_alarm ? row.light_state : false) ? row.light_state : 'Off'}}
+							td(ng-show='(current_timestamp - row.update_timestamp) < 15')
+								span.label.label-success Online
+							td(ng-show='(current_timestamp - row.update_timestamp) >= 15')
+								span.label.label-danger Offline
+							td 
+								a(href='#', ng-show='(current_timestamp - row.update_timestamp) >= 30', ng-click='doRemove(sensor.controller_id, row.sensor_id, row.sensor_uri)')
+									span.glyphicon.glyphicon-remove(aria-hidden='true')
+
+					.panel-footer
+						span 상태 : &nbsp;
+						span.label.label-success(ng-show='(current_timestamp - sensor.update_timestamp) < 10') Online
+						span.label.label-danger(ng-show='(current_timestamp - sensor.update_timestamp) >= 10') Offline
+						span &nbsp;&nbsp;
+						span 마지막 업데이트 : {{changeTimestamp(sensor.update_timestamp)}}
+			
+			<!-- Modal changeInfo -->
+			.modal.fade.changeInfo(tabindex='-1', role='dialog', aria-labelledby='mySmallModalLabel', aria-hidden='true')
+				.modal-dialog.modal-sm
+					.modal-content
+						.modal-header
+							h4.modal-title 
+								컨트롤러 정보 변경
+						.modal-body
+							.form-group
+								label(for='saveTitleInput')
+									컨트롤러 이름
+								input.form-control#saveTitleInput(type='text', placeholder='{{modal.controller_name}}', ng-model='info.controller_name')
+							.form-group
+								label(for='saveAdminName')
+									관리자 이름
+								input.form-control#saveAdminName(type='text', placeholder='{{modal.admin_name}}', ng-model='info.admin_name')
+							.form-group
+								label(for='saveAdminTel')
+									관리자 전화번호
+								input.form-control#saveAdminTel(type='tel', placeholder='{{modal.admin_tel}}', ng-model='info.admin_tel')
+							.form-group
+								label(for='saveDescription')
+									설명
+								textarea.form-control#saveDescription(rows='3', placeholder='{{modal.description}}', style='resize: none', ng-model='info.description')
+						.modal-footer
+							button.btn.btn-default(type='button', data-dismiss='modal')
+								취소
+							button.btn.btn-primary(ng-click='changeInfo(modal.controller_id)')
+								저장
+			<!-- Modal End -->
+			<!-- Modal doAlert -->
+			.modal.fade.doAlert(tabindex='-1', role='dialog', aria-labelledby='mySmallModalLabel1', aria-hidden='true')
+				.modal-dialog.modal-sm
+					.modal-content
+						.modal-header
+							h4.modal-title {{alertModalName}}
+						.modal-body
+							해당 디바이스로 알람을 {{alertModalText}}하시겠습니까?
+						.modal-footer
+							button.btn.btn-default(type='button', data-dismiss='modal')
+								취소
+							button.btn.btn-danger(ng-click='doAlert(alertModalId)')
+								알람 {{alertModalText}}
+			<!-- Modal End -->

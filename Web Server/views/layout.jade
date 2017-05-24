@@ -1,0 +1,183 @@
+doctype html
+html
+	head
+		title= title
+		link(rel='stylesheet', href='/stylesheets/style.css')
+		
+		link(rel='stylesheet', href='//maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css')
+		link(rel='stylesheet', href='//maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap-theme.min.css')
+		script(type='text/javascript' src='//ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js')
+		script(type='text/javascript' src='//maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js')
+		script(type='text/javascript' src='//ajax.googleapis.com/ajax/libs/angularjs/1.5.8/angular.min.js')
+		script(type='text/javascript' src='//code.angularjs.org/1.5.8/angular-route.min.js')
+		script(type='text/javascript' src='./javascripts/general.js')
+		script.
+			var myAppModule = angular.module('myApp',[]);
+			myAppModule.controller('monit', function($scope) {
+				$scope.select = 0;
+				var ws = new WebSocket('ws://dev.freakylab.com:3001', 'starnight-iotivity');
+				ws.onopen = function() {
+					console.debug("connected");
+					ws.send("ready");
+				};
+
+				ws.onmessage = function(evt) {
+					var jsonData = JSON.parse(evt.data);
+					$scope.current_timestamp = Math.floor(Date.now() / 1000);
+
+					$scope.tableData = jsonData;
+					$scope.$apply();
+
+					var scanPerson = false;
+					for(idx in jsonData) {
+						if(jsonData[idx].fire_alarm > 0) {
+							scanPerson = true;
+						}
+					}
+
+					if(false) {
+						var checkNear = {};
+						jsonData.forEach(function(itm, idx) {
+							var sensors = itm.sensor_data;
+							for(var i = 0; i < sensors.length; i++) {
+								if(sensors[i].person) {
+									var data = sensors[i].person.people;
+									for(var j = 0; j < data.length; j++) {
+										if((checkNear[data[j].address] ? checkNear[data[j].address] : 100) > data[j].distance) {
+											checkNear[data[j].address] = data[j].distance;
+										}
+									}
+								}
+							}
+							if(idx == jsonData.length - 1) {
+								var result = {
+									code: 3,
+									data: []
+								};
+								jsonData.forEach(function(item, index) {
+									var sensors2 = item.sensor_data;
+									for(sensorIdx in sensors2) {
+										if(sensors2[sensorIdx].person) {
+											var tmp = sensors2[sensorIdx].person.people;
+											var count = 0;
+											for(personIdx in tmp) {
+												for(key in checkNear) {
+													if(tmp[personIdx].address == key && tmp[personIdx].distance == checkNear[key]) {
+														count++;
+													}
+												}
+											}
+											result.data.push({
+												controller_id: item.controller_id,
+												sensor_id: sensors2[sensorIdx].sensor_id,
+												light_state: count
+											});
+										}
+										else {
+											result.data.push({
+												controller_id: item.controller_id,
+												sensor_id: sensors2[sensorIdx].sensor_id,
+												light_state: 0
+											});
+										}
+									}
+									if(index == jsonData.length - 1) {
+										ws.send(JSON.stringify(result));
+									}
+								});
+							}
+						});
+					}
+				};
+
+				ws.onclose = function() {
+					console.debug("disconnected");
+				};
+
+				setInterval(function() {
+					ws.send("all");
+				}, 1000);
+
+				$scope.selectPanel = function(a, b, fire_alarm) {
+					if(a - b < 10) {
+						if(fire_alarm > 0) {
+							return false;
+						}
+						return true;
+					}
+					else {
+						return false;
+					}
+				};
+				$scope.changeTimestamp = function(timestamp) {
+					var date = new Date(timestamp * 1000);
+					return date.toLocaleString();
+				}
+				$scope.makeModal = function(data) {
+					var result = $scope.tableData.filter(function(val) {
+						return val.controller_id==data;
+					});
+					$scope.modal = result[0];
+					$('.changeInfo').find('input').val("");
+					$('.changeInfo').find('textarea').val("");
+				};
+				$scope.changeInfo = function(data) {
+					$('.changeInfo').modal('hide');
+					if($scope.info.controller_name != null | $scope.info.admin_name != null | $scope.info.admin_tel != null | $scope.info.description != null) {
+						$scope.info.controller_id = data;
+						var result = {
+							code: 0,
+							data: $scope.info
+						};
+						ws.send(JSON.stringify(result));
+						$scope.info = null;
+					}
+				};
+				$scope.makeAlert = function(select, id, name) {
+					$scope.alertModalSelect = select;
+					$scope.alertModalId = id;
+					if(select == 1) {
+						$scope.alertModalName = '컨트롤러 ' + name;
+						$scope.alertModalText = '전파';
+					}
+					else if(select == 2) {
+						$scope.alertModalName = '컨트롤러 ' + name;
+						$scope.alertModalText = '해제';
+					}
+				};
+				$scope.doAlert = function(id) {
+					$('.doAlert').modal('hide');
+					var result;
+					if($scope.alertModalSelect == 1) {
+						result = {
+							code: 1,
+							data: {
+								controller_id: id,
+								type: 2
+							}
+						};
+					}
+					else if($scope.alertModalSelect == 2) {
+						result = {
+							code: 2,
+							data: {
+								controller_id: id
+							}
+						}
+					}
+					ws.send(JSON.stringify(result));
+				};
+				$scope.doRemove = function(ctrl, sensor, uri) {
+					var result = {
+						code: 4,
+						data: {
+							controller_id: ctrl,
+							sensor_id: sensor,
+							sensor_uri: uri
+						}
+					}
+					ws.send(JSON.stringify(result))
+				}
+			});
+	body(ng-app='myApp')
+		block content

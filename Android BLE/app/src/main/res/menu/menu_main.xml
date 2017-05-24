@@ -1,0 +1,13 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools" tools:context=".MainActivity">
+    <!-- 오버플로우 공간 안에 있는 "셋팅" 액션 아이템 -->
+    <item android:id="@+id/action_develeoper"
+        android:title="@string/developer"
+        app:showAsAction="never"
+        />
+    <item android:id="@+id/action_info"
+        android:title="@string/info"
+        app:showAsAction="never"
+        />
+</menu>
